@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Listen for Xdebug",
+            "type": "php",
+            "request": "launch",
+            "port": 9003,
+            "pathMappings": {
+                "/var/www/html": "${workspaceFolder}/app" // if you have opened VSCODE in root folder
+                // "/var/www/html": "${workspaceFolder}" // if you have opened VSCODE in ./www folder
+            }
+        }
+    ]
+}

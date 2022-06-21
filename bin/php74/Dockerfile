@@ -1,0 +1,124 @@
+FROM php:7.4.2-apache-bullseye
+
+# Surpresses debconf complaints of trying to install apt packages interactively
+# https://github.com/moby/moby/issues/4032#issuecomment-192327844
+
+# Arguments
+ARG user
+ARG uid
+ARG DEBIAN_FRONTEND=noninteractive
+ARG NODE_VERSION=16
+
+ENV TZ=America/Sao_Paulo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get -y update
+RUN apt-get upgrade -y
+
+RUN apt-get -y --no-install-recommends install --fix-missing \
+    apt-transport-https \
+    apt-utils \
+    build-essential \
+    ca-certificates \
+    curl \
+    dialog \
+    git \
+    iputils-ping \
+    lsb-release \
+    mc \
+    nano \
+    openssl \
+    software-properties-common \
+    unzip \
+    wget \
+    zip
+
+RUN apt-get -y --no-install-recommends install --fix-missing \
+    libcurl4 \
+    libcurl4-openssl-dev \
+    libicu-dev \
+    libonig-dev \
+    libsqlite3-0 \
+    libsqlite3-dev \
+    libxml2-dev \
+    libzip-dev \
+    zlib1g-dev
+RUN apt-get -y --no-install-recommends install --fix-missing default-mysql-client
+RUN rm -rf /var/lib/apt/lists/*
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Install xdebug
+RUN pecl install xdebug-3.1.5 && \
+    docker-php-ext-enable xdebug && \
+    mkdir /var/log/xdebug
+
+# Install redis
+RUN pecl install redis-5.1.1 && \
+    docker-php-ext-enable redis
+
+# Install imagick
+RUN apt-get update && \
+    apt-get -y --no-install-recommends install --fix-missing libmagickwand-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    pecl install imagick && \
+    docker-php-ext-enable imagick
+
+# Other PHP7 Extensions
+RUN docker-php-ext-install \
+    -j$(nproc) intl \
+    bcmath \
+    calendar \
+    curl \
+    exif \
+    gd \
+    gettext \
+    json \
+    mbstring \
+    mysqli \
+    opcache \
+    pcntl \
+    pdo \
+    pdo_mysql \
+    pdo_sqlite \
+    soap \
+    sockets \
+    tokenizer \
+    xml \
+    zip
+
+# Install Freetype
+RUN apt-get -y update && \
+    apt-get --no-install-recommends install -y \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    docker-php-ext-configure gd --enable-gd --with-freetype --with-jpeg && \
+    docker-php-ext-install gd
+
+# Enable apache modules
+RUN a2enmod rewrite headers
+
+# Install nodejs, yarn and npm
+RUN curl -sLS https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm \
+    && curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor | tee /usr/share/keyrings/yarn.gpg >/dev/null \
+    && echo "deb [signed-by=/usr/share/keyrings/yarn.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list \
+    && apt-get update \
+    && apt-get install -y yarn
+
+# Cleanup
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN rm -rf /usr/src/*
+
+# Create system user to run Composer and Artisan Commands
+RUN useradd -G www-data,root -u $uid -d /home/$user $user
+RUN mkdir -p /home/$user/.composer && \
+    chown -R $user:$user /home/$user
+
+# Set working directory
+WORKDIR /var/www/html
+
+USER $user
